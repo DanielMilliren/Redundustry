@@ -1,0 +1,107 @@
+;;;; SeqDLM Implementation
+
+;;; Based on
+;;; https://dl.acm.org/doi/10.5555/3571885.3571958
+;;; Credit to Qi Chen et al. for SeqDLM
+
+;;; Technical sources:
+;;; https://letoverlambda.com/index.cl/guest/chap2.html
+;;; https://letoverlambda.com/index.cl/guest/chap3.html
+;;; https://metaspec.dev
+
+;;;; Macros
+
+;;; defclosure
+;;; defines flattened syntax for a basic closure.
+;;; Usage:
+;;; (defclosure
+;;;     ((arg1 arg2 ...))
+;;;     ((let1 let2 ...))
+;;;     ((larg1 larg2 ...))
+;;;     ((inner function body here))
+;;; )
+
+(defmacro defclosure 
+    (name ((&optional &rest arg)) ((&optional &rest letvar))
+    ((&optional &rest largs)) ((&rest l)))  ; arguments split over new line for readability
+    (declare (inline))
+    "Defines a simple, named closure.
+    Arguments:
+    arg - list of closure arguments
+    letvar - letvar form
+    largs - list of lambda arguments
+    l - lambda function form"
+    `(defun ,name ,arg
+        (let ((,@letvar))
+            (lambda (,@largs) (,@l))
+        )
+    )
+)
+
+
+;;; seqdlmlcm returns a closure that has:
+;;; a file lock (lock)
+;;; a file state (state)
+;;; writer ID (machID)
+;;; lock request functionality
+
+;;; usage for seqdlmlcm instance alpha:
+;;; (alpha nlock nstate nmachID)
+;;; -> returns a list (rlock rstate rmachID success)
+
+;;; The reason why the lambda returns the args
+;;; for a new seqdlmlcm is because that makes it
+;;; significantly easier to check if the lock
+;;; should be granted and to log lock changes
+
+;;; valid locks, from most to least severe:
+;;; "pw"   = protective write
+;;; "bw"   = blocking write
+;;; "nbw"  = nonblocking write
+;;; "pr"   = protective read
+;;; "none" = no lock
+
+;;; valid states:
+;;; "none"    = no state
+;;; "granted" = lock granted
+;;; "cancel"  = canceling state, waiting for lock release
+;;; if state is "none," default behavior is to treat as granted.
+;;; reject new state none.
+
+(defclosure seqdlmlcm
+    ((lock state machid))       ; arguments for the seqdlmlcm func
+    ((lockfunc))                ; let variable list
+    ((nlock nstate nmachid))    ; vars for the returned lambda function
+    ((cond
+        ((equal lock "pw")
+            (values lock state machid nil)
+        )
+        ((equal lock "bw")
+            (values lock state machid nil)
+        )
+        ((equal lock "nbw")
+            (cond
+                ((equal state "canceling")
+                    (if 
+                    (and
+                        (and (not (equal nlock "none")) (not (equal nstate "none")))
+                        (or (equal nlock "nbw") (equal nlock "bw"))
+                    )
+                        (values nlock nstate nmachid t)
+                        (values lock state machid nil)
+                    )
+                )
+                ((equal state "granted") (values lock state machid nil))
+            )
+        )
+        ((equal lock "pr")
+            (if (equal nlock "pr")
+                (values nlock nstate nmachid t)
+                (values lock state machid nil)
+            )
+        )
+        ((equal lock "none")
+                (values nlock nstate nmachid t)
+        )
+    ))
+)
