@@ -2,12 +2,22 @@
 
 ;;; Based on
 ;;; https://dl.acm.org/doi/10.5555/3571885.3571958
-;;; Credit to Qi Chen et al. for SeqDLM
+;;; Credit to Qi Chen et al. for SeqDLM algorithm
 
 ;;; Technical sources:
 ;;; https://letoverlambda.com/index.cl/guest/chap2.html
 ;;; https://letoverlambda.com/index.cl/guest/chap3.html
 ;;; https://metaspec.dev
+
+;;;; seqdlm_func.lisp Documentation
+
+;;; See the link to Qi Chen et al. above for the original paper,
+;;; but lock categories in short:
+
+;;; "pw"  = used when machid wants to read from AND write to a file
+;;; "bw"  = used when machid just wants to write to multiple files
+;;; "nbw" = used when machid just wants to write to one file
+;;; "pr"  = used when machid just wants to read from a file
 
 ;;;; Macros
 
@@ -68,7 +78,6 @@
 ;;; "granted" = lock granted
 ;;; "cancel"  = canceling state, waiting for lock release
 ;;; if state is "none," default behavior is to treat as granted.
-;;; reject new state none.
 
 (defclosure seqdlmlcm
     ((lock state machid))       ; arguments for the seqdlmlcm func
@@ -90,7 +99,7 @@
                         (values lock state machid nil)
                     )
                 )
-                ((equal state "granted") (values lock state machid nil))
+                (t (values lock state machid nil))
             )
         )
         ((equal lock "pr")                  ; protective read
