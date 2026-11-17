@@ -44,14 +44,17 @@
 ;;; writer ID (machID)
 ;;; lock request functionality
 
-;;; usage for seqdlmlcm instance alpha:
-;;; (alpha nlock nstate nmachID)
-;;; -> returns a list (rlock rstate rmachID success)
+;;; usage for seqdlmlcm instance:
+;;; (funcall alpha nlock nmachID)
+;;; -> returns a list of parameters
+;;;     - lock
+;;;     - state
+;;;     - machine id
+;;;     - success/fail boolean
 
-;;; The reason why the lambda returns the args
-;;; for a new seqdlmlcm is because that makes it
-;;; significantly easier to check if the lock
-;;; should be granted and to log lock changes
+;;; The reason why the lambda returns args for
+;;; a new seqdlmlcm is because that makes it
+;;; usable for generating new lcm lambdas.
 
 ;;; valid locks, from most to least severe:
 ;;; "pw"   = protective write
@@ -70,7 +73,7 @@
 (defclosure seqdlmlcm
     ((lock state machid))       ; arguments for the seqdlmlcm func
     (())                        ; let variable list
-    ((nlock nstate nmachid))    ; vars for the returned lambda function
+    ((nlock nmachid))    ; vars for the returned lambda function
     ((cond
         ((equal lock "pw")  ; protective write
             (values lock state machid nil)  ; protective write
@@ -82,11 +85,8 @@
             (cond
                 ((equal state "canceling")
                     (if 
-                    (and
-                        (and (not (equal nlock "none")) (not (equal nstate "none")))
                         (or (equal nlock "nbw") (equal nlock "bw"))
-                    )
-                        (values nlock nstate nmachid t)
+                        (values nlock state nmachid t)
                         (values lock state machid nil)
                     )
                 )
@@ -95,12 +95,15 @@
         )
         ((equal lock "pr")                  ; protective read
             (if (equal nlock "pr")  ; allow only protective reads to be granted
-                (values nlock nstate nmachid t)
+                (values nlock state nmachid t)
                 (values lock state machid nil)
             )
         )
         ((equal lock "none")
-                (values nlock nstate nmachid t)
+                (values nlock state nmachid t)
         )
     ))
 )
+
+;;; TO DO:
+;;; Add one more
