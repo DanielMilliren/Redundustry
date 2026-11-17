@@ -31,13 +31,12 @@
     letvar - letvar form
     largs - list of lambda arguments
     l - lambda function form"
-    `(defun ,name ,arg
-        (let ((,@letvar))
+    `(defun ,name ,arg                  ; name and outer function args here
+        (let (,@letvar)               ; letvar, this can be whatever
             (lambda (,@largs) (,@l))
         )
     )
 )
-
 
 ;;; seqdlmlcm returns a closure that has:
 ;;; a file lock (lock)
@@ -70,16 +69,16 @@
 
 (defclosure seqdlmlcm
     ((lock state machid))       ; arguments for the seqdlmlcm func
-    ((lockfunc))                ; let variable list
+    (())                        ; let variable list
     ((nlock nstate nmachid))    ; vars for the returned lambda function
     ((cond
-        ((equal lock "pw")
+        ((equal lock "pw")  ; protective write
+            (values lock state machid nil)  ; protective write
+        )
+        ((equal lock "bw")                  ; blocking write
             (values lock state machid nil)
         )
-        ((equal lock "bw")
-            (values lock state machid nil)
-        )
-        ((equal lock "nbw")
+        ((equal lock "nbw")                 ; non-blocking write
             (cond
                 ((equal state "canceling")
                     (if 
@@ -94,8 +93,8 @@
                 ((equal state "granted") (values lock state machid nil))
             )
         )
-        ((equal lock "pr")
-            (if (equal nlock "pr")
+        ((equal lock "pr")                  ; protective read
+            (if (equal nlock "pr")  ; allow only protective reads to be granted
                 (values nlock nstate nmachid t)
                 (values lock state machid nil)
             )
