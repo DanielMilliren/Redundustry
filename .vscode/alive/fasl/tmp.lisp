@@ -33,17 +33,19 @@
 
 (defmacro defclosure 
     (name ((&optional &rest arg)) ((&optional &rest letvar))
-    ((&optional &rest largs)) ((&rest l)))  ; arguments split over new line for readability
+    ((&optional &rest largs)) &optional ((before_l)) ((&rest l)))  ; arguments split over new line for readability
     (declare (inline))
     "Defines a simple, named closure.
     Arguments:
-    arg - list of closure arguments
-    letvar - letvar form
-    largs - list of lambda arguments
-    l - lambda function form"
+    arg         - list of closure arguments
+    letvar      - letvar form
+    largs       - list of lambda arguments
+    before_l    - code to run before l. Not returned, as let is an implicit progn.
+    l           - lambda function form"
     `(defun ,name ,arg                  ; name and outer function args here
         (let (,@letvar)                 ; letvar, this can be whatever
-            (lambda (,@largs) (,@l))
+            (,@before_l)                ; code to run before returning lambda
+            (lambda (,@largs) (,@l))    ; return lambda
         )
     )
 )
@@ -124,13 +126,58 @@
     ))
 )
 
+;;; filelock (struct, constructor make-filelock)
+
+;;; lcmfunc     = lock compatibility matrix, function.
+;;; lockid      = lock id, integer.
+;;; seqnum      = sequence num, integer.
+
+(defstruct filelock 
+    (lcmfunc (seqdlmlcm "none" "none" 0) :type function)
+    (lockid 0 :type int)
+    (seqnum 0 :type int)
+    (:conc-name lockget-)
+    "Defines a file lock.
+    (lockget-lcmfunc n) returns the lock compatibility matrix.
+    (lockget-lockid n) returns the lockid.
+    (lockget-seqnum n) returns the sequence number."
+)
+
+
 ;;; TO DO:
 ;;; Write rest of SeqDLM's Functions
 ;;; Closures:
 ;;; - SeqDLM I/O Permissions
 ;;; - etc.
-
 ;;; Functions:
 ;;; - Lock Granter
 ;;; - Lock Revoker
 ;;; - I/O Handling
+
+;;; newfilelock
+;;; creates a new file lock from the necessary components and returns the file lock.
+;;; lockid  = lock id, must be an integer.
+;;; seqnum  = sequence number for most recent change, must be an integer.
+;;; lock    = lock, see seqdlmlcm, must be a string.
+;;; state   = state of lock, see seqdlm, must be a string.
+;;; machid  = machine id, must be an integer.
+
+(defun newfilelock (
+        (lockid :type int)
+        (seqnum :type int)
+        (lock :type string)
+        (state :type string)
+        (machid :type int)
+    )
+    "Usage:
+    (newfilelock lockid seqnum lock state machid)
+    lockid is the ID of the lock, used for logging purposes.
+    seqnum is used to order updates in lock grants and revocations.
+    lock is a string that identifies the lock type.
+    state is a string that identifies the lock state.
+    machid is an integer that identifies the owner of the lock."
+    (make-filelock (seqdlmlcm lock state machid) lockid seqnum)
+)
+
+;;; check_io
+;;; put under file logic
