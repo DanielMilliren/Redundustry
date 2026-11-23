@@ -35,7 +35,7 @@
     ;; See https://letoverlambda.com/index.cl/guest/chap2.html
     ;; on how a closure is structured in Common Lisp
     ;; and https://metaspec.dev/s_let.html
-    ;; on why before_l won't be returned
+    ;; on why before_l isn't be returned
     (name ((&optional &rest arg)) ((&optional &rest letvar))
     ((&optional &rest largs)) &optional ((before_l)) ((&rest l)))  ; arguments split over new line for readability
     (declare (inline))
