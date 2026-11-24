@@ -37,19 +37,22 @@
     ;; and https://metaspec.dev/s_let.html
     ;; on why before_l isn't returned
     (name ((&optional &rest arg)) ((&optional &rest letvar))
-    ((&optional &rest largs)) &optional ((before_l)) ((&rest l)))  ; arguments split over new line for readability
+    ((&optional &rest largs)) ; arguments split over new line for readability
+    ((&body l)))
     (declare (inline))
     "Defines a simple, named closure.
     Arguments:
     arg         - list of closure arguments
     letvar      - letvar form
     largs       - list of lambda arguments
-    before_l    - code to run before l. Not returned, as let is an implicit progn.
-    l           - lambda function form"
+    prepare     - code to run before l, returns nothing.
+    l           - lambda function form
+    
+    In the prepare body:
+    Use (return-from before_l) to return with lambda early."
     `(defun ,name ,arg                  ; name and outer function args here
         (let (,@letvar)                 ; letvar, this can be whatever
-            (,@before_l)                ; code to run before returning lambda
-            (lambda (,@largs) (,@l))    ; return lambda
+            (lambda (,@largs) (,@l)); return lambda
         )
     )
 )
@@ -124,7 +127,7 @@
                 (values lock state machid nil)
             )
         )
-        (t  ; fail safe
+        ((values t)  ; fail safe
             (values lock state machid nil)
         )
     ))
@@ -136,15 +139,15 @@
 ;;; lockid      = lock id, integer.
 ;;; seqnum      = sequence num, integer.
 
+;;; Defines a file lock.
+;;; (filelock-lcmfunc n) returns the lock compatibility matrix.
+;;; (filelock-lockid n) returns the lockid.
+;;; (filelock-seqnum n) returns the sequence number.
+
 (defstruct filelock 
     (lcmfunc (seqdlmlcm "none" "none" 0) :type function)
-    (lockid 0 :type int)
-    (seqnum 0 :type int)
-    (:conc-name lockget-)
-    "Defines a file lock.
-    (lockget-lcmfunc n) returns the lock compatibility matrix.
-    (lockget-lockid n) returns the lockid.
-    (lockget-seqnum n) returns the sequence number."
+    (lockid 0)
+    (seqnum 0)
 )
 
 
@@ -166,12 +169,11 @@
 ;;; state   = state of lock, see seqdlm, must be a string.
 ;;; machid  = machine id, must be an integer.
 
-(defun newfilelock (
-        (lockid :type int)
-        (seqnum :type int)
-        (lock :type string)
-        (state :type string)
-        (machid :type int)
+(defun newfilelock
+    (lockid seqnum lock state machid)
+    (declare
+        (type string lock state)
+        (type integer lockid seqnum machid)
     )
     "Usage:
     (newfilelock lockid seqnum lock state machid)
@@ -180,7 +182,11 @@
     lock is a string that identifies the lock type.
     state is a string that identifies the lock state.
     machid is an integer that identifies the owner of the lock."
-    (make-filelock (seqdlmlcm lock state machid) lockid seqnum)
+    (make-filelock 
+        :lcmfunc (seqdlmlcm lock state machid)
+        :lockid lockid
+        :seqnum seqnum
+    )
 )
 
 ;;; check_io
